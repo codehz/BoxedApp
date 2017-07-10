@@ -1,5 +1,8 @@
 {
     "name": "boxed-application-platform",
     "version": "0.0.0",
-    "main": "index.js"
+    "main": "index.js",
+    "dependencies": {
+        "flat-file-db": "^1.0.0"
+    }
 }

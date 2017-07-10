@@ -13,6 +13,7 @@
         "impliedStrict": true
     },
     "rules": {
+        "no-console": "off",
         "indent": [
             "error",
             4
