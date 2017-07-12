@@ -2,10 +2,6 @@
 
 const { app, BrowserWindow, protocol } = require(`electron`);
 
-app.makeSingleInstance(commandLine => {
-    procArgs(...commandLine.slice(1));
-}) && app.quit();
-
 const fs = require(`fs`);
 const path = require(`path`);
 const url = require(`url`);
@@ -15,10 +11,15 @@ const stat = p => new Promise((resolve, reject) => fs.stat(p, (err, tstat) => (e
 
 protocol.registerStandardSchemes([`app`], { secure: true });
 
+const xelJS = fs.readFileSync(path.join(__dirname, `node_modules/xel/xel.min.js`), `utf-8`);
+const xelCSS = fs.readFileSync(path.join(__dirname, `node_modules/xel/stylesheets/vanilla.theme.css`), `utf-8`);
+
 let winSet = new Set();
 
 const flatfile = require(`flat-file-db`);
 const db = flatfile.sync(path.join(app.getPath(`userData`), `app.jsondb`));
+
+global.db = db;
 
 if (!app.isDefaultProtocolClient(`boxed`, process.argv[0])) {
     app.setAsDefaultProtocolClient(`boxed`, process.argv[0]);
@@ -52,28 +53,39 @@ async function fetchIndex(tpath, indexName = [`index.html`], exts = [], failed =
     }
 }
 
-async function procArgs(urlStr = `boxed://app/`) {
+async function getSearchParam(urlStr) {
     const curl = new URL(urlStr);
     console.log(curl);
     const base = curl.hostname === `app` ? __dirname : db.has(curl.hostname) && db.get(curl.hostname).base;
     if (!base)
-        return createWindow({
-            target: `./notfound.js`,
+        return {
+            target: path.join(__dirname, `/notfound.js`),
             base: url.format({
                 protocol: `app`,
                 hostname: `app`
             }),
             url: urlStr
-        });
-    createWindow({
-        target: await fetchIndex(path.join(base, curl.pathname), [`app.js`, `index.js`], [`js`], `./notfound.js`),
+        };
+    return {
+        target: await fetchIndex(
+            path.join(base, curl.pathname),
+            [`app.js`, `index.js`],
+            [`js`],
+            path.join(__dirname, `/notfound.js`)
+        ),
         base: url.format({
             protocol: `app`,
-            hostname: `app`
+            hostname: curl.hostname
         }),
         url: urlStr
-    });
+    };
 }
+
+async function openURL(urlStr = `boxed://app/`, parent, modal) {
+    createWindow(await getSearchParam(urlStr), parent, modal);
+}
+
+global.openURL = openURL;
 
 app.on(`ready`, () => {
     protocol.registerFileProtocol(`app`, async ({ url: source, method }, callback) => {
@@ -90,38 +102,64 @@ app.on(`ready`, () => {
             )
         );
     });
-    procArgs(...process.argv.slice(1));
+    openURL(...process.argv.slice(1));
 });
 
-function createWindow(obj) {
-    const win = new BrowserWindow({
-        width: 800,
-        height: 600,
-        frame: false,
-        show: false,
-        webPreferences: {
-            preload: path.join(__dirname, `box`, `box.js`),
-            experimentalFeatures: true,
-            experimentalCanvasFeatures: true,
-            defaultEncoding: `UTF-8`,
-            defaultFontFamily: {
-                standard: `Microsoft Yahei UI`,
-                sansSerif: `Microsoft Yahei UI`,
-                monospace: `Inziu Iosevka SC`
+function createWindow(obj, parent, modal = false) {
+    try {
+        const sub = require(obj.target);
+        const {
+            config: {
+                title,
+                size: [width, height] = [],
+                minSize: [minWidth = 200, minHeight = 100] = [],
+                maxSize: [maxWidth, maxHeight] = [],
+                resizable = true,
+                maximizable = resizable,
+                alwaysOnTop,
+                backgroundColor
             }
-        }
-    });
-    win.loadURL(
-        url.format({
-            pathname: path.join(__dirname, `index.html`),
-            protocol: `file:`,
-            search: querystring.stringify(obj),
-            slashes: true
-        })
-    );
-    win.webContents.openDevTools();
-    win.on(`closed`, () => winSet.delete(win));
-    winSet.add(win);
+        } = sub;
+        console.log(`title: `, title);
+        const win = new BrowserWindow({
+            title,
+            width,
+            height,
+            minWidth,
+            minHeight,
+            maxWidth,
+            maxHeight,
+            resizable,
+            maximizable,
+            alwaysOnTop,
+            backgroundColor,
+            frame: false,
+            parent,
+            modal,
+            webPreferences: {
+                preload: path.join(__dirname, `box`, `box.js`),
+                experimentalFeatures: true,
+                experimentalCanvasFeatures: true,
+                defaultEncoding: `UTF-8`,
+                defaultFontFamily: {
+                    monospace: `Inziu Iosevka SC`
+                }
+            }
+        });
+        win.loadURL(
+            url.format({
+                hostname: `app`,
+                protocol: `app:`,
+                search: querystring.stringify(obj),
+                slashes: true
+            })
+        );
+        //win.webContents.openDevTools();
+        win.on(`closed`, () => winSet.delete(win));
+        winSet.add(win);
+    } catch (e) {
+        console.log(e);
+    }
 }
 
 app.on(`window-all-closed`, () => app.quit());

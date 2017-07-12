@@ -3,6 +3,7 @@
     "version": "0.0.0",
     "main": "index.js",
     "dependencies": {
-        "flat-file-db": "^1.0.0"
+        "flat-file-db": "^1.0.0",
+        "xel": "0.0.48"
     }
 }

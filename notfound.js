@@ -1,5 +1,4 @@
 const { URL } = require(`url`);
-const turl = new URL(location.href);
 
 module.exports = {
     config: {
@@ -8,7 +7,7 @@ module.exports = {
         maxSize: [400, 300],
         size: [400, 300]
     },
-    content: ({ symbols: sym, utils: { css } }) => ({
+    content: ({ symbols: sym, utils: { css, el } }, win, window) => ({
         [sym.components]: [
             css`
             :host {
@@ -17,16 +16,13 @@ module.exports = {
                 align-items: center;
                 justify-content: center;
                 -webkit-app-region: drag;
-                -webkit-user-select: none;
+                user-select: none;
             }
             span {
                 font-weight: lighter;
             }
             `,
-            {
-                [sym.element]: `span`,
-                [sym.text]: `App '${turl.searchParams.get(`url`)}' Not Found`
-            }
+            el`span`(`App '${new URL(window.location.href).searchParams.get(`url`)}' Not Found`)
         ]
     })
 };
